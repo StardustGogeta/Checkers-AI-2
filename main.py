@@ -1,4 +1,4 @@
-import copy
+import copy, random
 
 # These are constant values for storing and handling board data
 W = 1
@@ -43,13 +43,15 @@ class Board:
     # List of lists of pairs of pairs = List of moves
     # This allows for complex king move sequences to be described
     # ex) [[((6, 1), (5, 2))], [((5, 0), (4, 1))]]
-    def get_moves(self, color = W):
+    def get_moves(self, color = W, *, randomize = False):
         ret = []
         pieces_to_find = [W, W_KING] if color == W else [B, B_KING]
         for y, row in enumerate(self.arr):
             for x, piece in enumerate(row):
                 if piece in pieces_to_find:
                     ret.extend(self.get_piece_moves(y, x, piece))
+        if randomize:
+            random.shuffle(ret)
         return ret
 
     # Returns a list of lists of pairs of coordinate pairs for a single piece on the board
@@ -126,16 +128,83 @@ class Board:
 
     # Pretty-print the current board
     def __str__(self):
-        return '\n'.join(str(self.__stringify_row(row)) for row in self.arr)
+        # return '\n'.join(str(self.__stringify_row(row)) for row in self.arr)
+        return '\n'.join(' '.join(self.__stringify_row(row)) for row in self.arr)
 
     # Produce and return a deep copy of the board
     def copy(self):
         return Board(copy.deepcopy(self.arr))
 
+    # Return a static evaluation of the board position based on piece count and position
+    def evaluate(self, color = W, turn = W, king_val = 5):
+        if color != W:
+            # Black's score is just the opposite of white's
+            return -self.evaluate(W)
+        # def row_end_val(row):
+            # conv = {W: 1, B: -1, W_KING: W * king_val, B_KING: B * king_val, 0: 0}
+            # print("ROW:", row, self.arr)
+            # return conv[row[0]] + conv[row[7]]
+        # edge_piece_val = sum(row_end_val(row) for row in self.arr)
+        available_moves = self.get_moves(turn)
+        # If a player can't move, they lose
+        if not available_moves:
+            return -1000 if turn == color else 1000
+        return self.net_piece_value()# + edge_piece_val
+
+# Return the optimal move for a certain color in a given position
+def get_optimal_move(board, color = W, depth = 3, alpha = None, beta = None):
+    best_move = None
+    alpha = -10**5 # Lower bound for acceptable scores
+    beta = 10**5 # Upper bound for possible scores
+    best_move, score = alphabeta_max(alpha, beta, color, board)
+    print(f"Best move is {best_move}\t\twith score of {score}")
+    return best_move
+
+# Return best move and the evaluated score associated with it
+# Uses alpha-beta decision tree pruning technique
+def alphabeta_max(alpha, beta, color, board, depth = 3):
+    if not depth:
+        return [None, board.evaluate(color, color)]
+    best_move = None
+    for move in board.get_moves(color, randomize = True):
+        test_board = board.copy()
+        test_board.make_move(move)
+        beta_move, score = alphabeta_min(alpha, beta, color, test_board, depth - 1)
+        if score >= beta:
+            # print("beta cut", score, move)
+            return beta_move, beta
+        if score > alpha:
+            best_move, alpha = move, score
+    return best_move, alpha
+
+# Alpha-beta pruning - auxiliary function
+def alphabeta_min(alpha, beta, color, board, depth = 3):
+    if not depth:
+        return [None, board.evaluate(color, color)]
+    best_move = None
+    for move in board.get_moves(B if color == W else W, randomize = True):
+        test_board = board.copy()
+        test_board.make_move(move)
+        alpha_move, score = alphabeta_max(alpha, beta, color, test_board, depth - 1)
+        if score <= alpha:
+            # print("alpha cut", score, move)
+            return alpha_move, alpha
+        if score < beta:
+            best_move, beta = move, score
+    return best_move, beta
+
 if __name__ == "__main__":
     b = Board()
     # print(b)
-    m = b.get_moves()
+    # m = b.get_moves()
     # print("MOVES", m, m[2])
-    b.make_move(m[2])
-    print(b)
+    # b.make_move(m[2])
+    # print(b)
+    color = W
+    while move := get_optimal_move(b, color):
+        color = B if color == W else W
+        b.make_move(move)
+        print(b, '\n')
+        input()
+
+    print("\n---------GAME OVER----------\n")
