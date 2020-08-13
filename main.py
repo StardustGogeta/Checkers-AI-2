@@ -1,5 +1,8 @@
 import copy, random
 
+RANDOMIZE = False
+SEARCH_DEPTH = 3
+
 # These are constant values for storing and handling board data
 W = 1
 B = 2
@@ -139,7 +142,7 @@ class Board:
     def evaluate(self, color = W, turn = W, king_val = 5):
         if color != W:
             # Black's score is just the opposite of white's
-            return -self.evaluate(W)
+            return -self.evaluate(W, turn)
         # def row_end_val(row):
             # conv = {W: 1, B: -1, W_KING: W * king_val, B_KING: B * king_val, 0: 0}
             # print("ROW:", row, self.arr)
@@ -157,54 +160,90 @@ def get_optimal_move(board, color = W, depth = 3, alpha = None, beta = None):
     alpha = -10**5 # Lower bound for acceptable scores
     beta = 10**5 # Upper bound for possible scores
     best_move, score = alphabeta_max(alpha, beta, color, board)
-    print(f"Best move is {best_move}\t\twith score of {score}")
+    color_name = ["", "white", "black"][color]
+    print(f"Best move for {color_name} is {best_move}\t\twith score of {score}")
     return best_move
 
-# Return best move and the evaluated score associated with it
+# Return player's best move and the evaluated score associated with it
 # Uses alpha-beta decision tree pruning technique
-def alphabeta_max(alpha, beta, color, board, depth = 3):
-    if not depth:
+def alphabeta_max(alpha, beta, color, board, depth = SEARCH_DEPTH):
+    if not depth: # At depth of zero, simply return the board evaluation
         return [None, board.evaluate(color, color)]
     best_move = None
-    for move in board.get_moves(color, randomize = True):
+    toplevel = depth == SEARCH_DEPTH
+    for move in board.get_moves(color, randomize = RANDOMIZE):
+        # Make a new board with the hypothetical move
         test_board = board.copy()
         test_board.make_move(move)
+        # Find the best score that the opponent could not prevent in this hypothetical and their best response move
         beta_move, score = alphabeta_min(alpha, beta, color, test_board, depth - 1)
+        # If the best unpreventable score in this hypothetical is not the worst unpreventable score of all
+        # hypotheticals, the opponent will avert it
+        # Returns opponent's best move
         if score >= beta:
             # print("beta cut", score, move)
             return beta_move, beta
+        # If the move allows you to guarantee a higher score than you could before, then this is the new optimal move
+        # Returns player's best move
         if score > alpha:
             best_move, alpha = move, score
     return best_move, alpha
 
 # Alpha-beta pruning - auxiliary function
-def alphabeta_min(alpha, beta, color, board, depth = 3):
-    if not depth:
+# Finds the best score that the opponent of `color` could not prevent
+def alphabeta_min(alpha, beta, color, board, depth):
+    if not depth: # No time for the opponent to prevent anything
         return [None, board.evaluate(color, color)]
     best_move = None
-    for move in board.get_moves(B if color == W else W, randomize = True):
+    # Try to find the opponent's counterplay
+    opp_color = W if color == B else B
+    for move in board.get_moves(opp_color, randomize = RANDOMIZE):
+        # Try the opponent's potential move
         test_board = board.copy()
         test_board.make_move(move)
+        # Find the best move that the main player could make and its score for them
         alpha_move, score = alphabeta_max(alpha, beta, color, test_board, depth - 1)
+        # If the player's best response to the opponent's counterplay provides less than the minimum acceptable score, it is not a viable path
+        # Returns player's best move
         if score <= alpha:
             # print("alpha cut", score, move)
             return alpha_move, alpha
+        # If the player's best response to the opponent's counterplay is worse than all other potential opponent moves, then this is the opponent's new best move
+        # Returns opponent's best move
         if score < beta:
             best_move, beta = move, score
     return best_move, beta
 
+def humanMoveToPairs(x):
+    # Convert a4b5 to ((4, 0), (3, 1)) for example
+    # The output is of the form ((y1, x1), (y2, x2))
+    x1 = ord(x[0]) - ord('a')
+    x2 = ord(x[2]) - ord('a')
+    y1 = 8 - int(x[1])
+    y2 = 8 - int(x[3])
+    return ((y1, x1), (y2, x2))
+
 if __name__ == "__main__":
+    print("Moves are entered as \"a4b5,b5c6\", etc.")
     b = Board()
-    # print(b)
-    # m = b.get_moves()
-    # print("MOVES", m, m[2])
-    # b.make_move(m[2])
-    # print(b)
     color = W
     while move := get_optimal_move(b, color):
+        if color == W:
+            print(b)
+            # move = eval(input("Enter move as list of pairs of positions: "))
+            move = None
+            while not move:
+                try:
+                    move = [humanMoveToPairs(x) for x in input("Enter move (comma-separated steps): ").split(',')]
+                except KeyboardInterrupt:
+                    exit()
+                except:
+                    print("Please try again.")
+            b.make_move(move)
+        else:
+            b.make_move(move)
+            print(b, '\n')
+            # input()
         color = B if color == W else W
-        b.make_move(move)
-        print(b, '\n')
-        input()
 
     print("\n---------GAME OVER----------\n")
