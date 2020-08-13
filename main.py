@@ -162,6 +162,9 @@ def get_optimal_move(board, color = W, depth = SEARCH_DEPTH, alpha = None, beta 
     best_move, score = alphabeta_max(alpha, beta, color, board, depth, depth)
     color_name = {W: "white", B: "black"}[color]
     print(f"Best move for {color_name} is {best_move}\t\twith score of {score}")
+    if not best_move and (moves := board.get_moves(color)):
+        # Take the first available move if all lead to a loss
+        return moves[0]
     return best_move
 
 # Return player's best move and the evaluated score associated with it
@@ -247,10 +250,8 @@ if __name__ == "__main__":
     b = Board()
     color = W
     human_colors = {W : False, B : False}
-    for depth in range(SEARCH_DEPTH, 0, -1):
-        print(f"Starting search depth {depth}...")
-        while move := get_optimal_move(b, color, depth if color == B else 1):
-            play_move(move, b, human_colors, color)
-            color = B if color == W else W
+    while move := get_optimal_move(b, color, SEARCH_DEPTH):
+        play_move(move, b, human_colors, color)
+        color = B if color == W else W
 
     print("\n---------GAME OVER----------\n")
